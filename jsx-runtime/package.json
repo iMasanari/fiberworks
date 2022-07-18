@@ -1,0 +1,6 @@
+{
+  "private": true,
+  "main": "..",
+  "module": "..",
+  "types": "./jsx-runtime.d.ts"
+}

@@ -1,0 +1,8 @@
+export const PLACEMENT_EFFECT_TYPE = 'PLACEMENT'
+export const UPDATE_EFFECT_TYPE = 'UPDATE'
+export const DELETION_EFFECT_TYPE = 'DELETION'
+
+export type EffectTag =
+  | typeof PLACEMENT_EFFECT_TYPE
+  | typeof UPDATE_EFFECT_TYPE
+  | typeof DELETION_EFFECT_TYPE
