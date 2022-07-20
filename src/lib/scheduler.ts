@@ -1,23 +1,41 @@
-// Implement requestIdleCallback polyfill with MessageChannel
-// https://github.com/pladaria/requestidlecallback-polyfill
+export type SceduleCallback = () => boolean | void
 
-const channel = /* @__PURE__ */ new MessageChannel()
+const channel = new MessageChannel()
+const taskQueue: SceduleCallback[] = []
 
-const queueTask = (callback: () => void) => {
-  channel.port1.onmessage = callback
-  channel.port2.postMessage(null)
-}
+let isSceduled = false
 
-export interface ScheduleDeadline {
-  timeRemaining: () => number
-}
+const postScedule = () => channel.port2.postMessage(null)
 
-export const scheduler = (callback: (deadline: ScheduleDeadline) => void) => {
+channel.port1.onmessage = () => {
   const start = Date.now()
 
-  return queueTask(() => {
-    callback({
-      timeRemaining: () => Math.max(0, 50 - (Date.now() - start)),
-    })
-  })
+  let task = taskQueue[0]
+  let shouldYield = false
+
+  while (task && !shouldYield) {
+    const hasMoreWork = task()
+
+    if (!hasMoreWork) {
+      taskQueue.shift()
+      task = taskQueue[0]
+    }
+
+    shouldYield = Date.now() - start > 50
+  }
+
+  if (task) {
+    postScedule()
+  } else {
+    isSceduled = false
+  }
+}
+
+export const requestSchedule = (callback: SceduleCallback) => {
+  taskQueue.push(callback)
+
+  if (!isSceduled) {
+    isSceduled = true
+    postScedule()
+  }
 }

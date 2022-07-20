@@ -1,6 +1,6 @@
 import { DELETION_EFFECT_TYPE, EffectTag, PLACEMENT_EFFECT_TYPE, UPDATE_EFFECT_TYPE } from './constants/effect-type'
 import { ROOT_NODE_TYPE, TEXT_NODE_TYPE } from './constants/node-type'
-import { ScheduleDeadline, scheduler } from './lib/scheduler'
+import { requestSchedule } from './lib/scheduler'
 
 declare global {
   namespace JSX {
@@ -266,17 +266,7 @@ export const registerApp = (element: VNode) => {
       listeners: {},
     }
 
-    wipRoot = {
-      type: ROOT_NODE_TYPE,
-      dom: rootDom,
-      props: {
-        children: [element],
-      },
-      alternate: currentRoot,
-    }
-
-    deletions = []
-    nextUnitOfWork = wipRoot
+    update(rootDom, { children: [element] })
   }
 
   addEventListener('message', ({ data }) => {
@@ -297,22 +287,31 @@ let currentRoot: Fiber | null = null
 let wipRoot: Fiber | null = null
 let deletions: Fiber[] = []
 
-const workLoop = (deadline: ScheduleDeadline) => {
-  let shouldYield = false
+const scheduler = () => {
+  if (!nextUnitOfWork) return
 
-  while (nextUnitOfWork && !shouldYield) {
-    nextUnitOfWork = performUnitOfWork(nextUnitOfWork)
-    shouldYield = deadline.timeRemaining() < 1
-  }
+  nextUnitOfWork = performUnitOfWork(nextUnitOfWork)
 
   if (!nextUnitOfWork && wipRoot) {
     commitRoot()
   }
 
-  scheduler(workLoop)
+  return !!nextUnitOfWork
 }
 
-scheduler(workLoop)
+const update = (dom: DomNode, props: Record<string, any>) => {
+  wipRoot = {
+    type: ROOT_NODE_TYPE,
+    dom,
+    props,
+    alternate: currentRoot,
+  }
+
+  nextUnitOfWork = wipRoot
+  deletions = []
+
+  requestSchedule(scheduler)
+}
 
 const performUnitOfWork = (fiber: Fiber) => {
   const isFunctionComponent =
@@ -459,14 +458,7 @@ export const useState = <T>(initial: T) => {
 
   const setState = (action: Action) => {
     hook.queue.push(action)
-    wipRoot = {
-      type: ROOT_NODE_TYPE,
-      dom: currentRoot!.dom,
-      props: currentRoot!.props,
-      alternate: currentRoot!,
-    }
-    nextUnitOfWork = wipRoot
-    deletions = []
+    update(currentRoot!.dom!, currentRoot!.props)
   }
 
   wipFiber!.hooks!.push(hook)
