@@ -13,7 +13,7 @@ const baseConfig = defineConfig({
 })
 
 export default defineConfig([{
-  input: './src/worker/fiberworks.ts',
+  input: './src/fiberworks.ts',
   output: [
     { format: 'esm', file: packages.module },
     { format: 'cjs', file: packages.main },

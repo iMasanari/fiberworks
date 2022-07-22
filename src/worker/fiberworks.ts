@@ -1,25 +1,7 @@
 import { DELETION_EFFECT_TYPE, EffectTag, PLACEMENT_EFFECT_TYPE, UPDATE_EFFECT_TYPE } from '../constants/effect-type'
 import { ROOT_NODE_TYPE, TEXT_NODE_TYPE } from '../constants/node-type'
+import { Component, VChild, VNode } from './jsx'
 import { requestSchedule } from './scheduler'
-
-declare global {
-  namespace JSX {
-    interface Element extends VNode<any> { }
-    interface IntrinsicElements {
-      [elemName: string]: any
-    }
-  }
-}
-
-export interface VNode<P = object> {
-  type: string | Component<P>
-  props: P
-  key: string | number | undefined
-}
-
-export interface Component<P = object> {
-  (props: P): VNode<P>
-}
 
 export interface CommitNode {
   type: string
@@ -69,44 +51,6 @@ interface Fiber {
   child?: Fiber | null
   sibling?: Fiber | null
   hooks?: any[]
-}
-
-const createTextElement = (text: string) => {
-  return {
-    type: TEXT_NODE_TYPE,
-    props: {
-      nodeValue: text,
-      children: [],
-    },
-  }
-}
-
-interface JsxProps {
-  children: VNode | string
-}
-
-export const jsx = (type: string | Component, props: JsxProps, key: string | number): VNode => {
-  const children = props.children != null ? [props.children] : []
-
-  return jsxs(type, { ...props, children }, key)
-}
-
-interface JsxsProps {
-  children: (VNode | string)[]
-}
-
-export const jsxs = (type: string | Component, props: JsxsProps, key: string | number): VNode => {
-  const children = props.children.map(child =>
-    child == null || typeof child === 'boolean'
-      ? createTextElement('')
-      : typeof child === 'object' ? child : createTextElement(child)
-  ).flat()
-
-  return {
-    type,
-    props: { ...props, children },
-    key,
-  }
 }
 
 let _domId = 0
@@ -355,8 +299,7 @@ const updateFunctionComponent = (fiber: Fiber) => {
   wipFiber = fiber
   hookIndex = 0
   wipFiber.hooks = []
-  const children = [(fiber.type as Component)(fiber.props)]
-  reconcileChildren(fiber, children)
+  reconcileChildren(fiber, (fiber.type as Component)(fiber.props))
 }
 
 const updateHostComponent = (fiber: Fiber) => {
@@ -366,15 +309,32 @@ const updateHostComponent = (fiber: Fiber) => {
   reconcileChildren(fiber, fiber.props.children)
 }
 
-const reconcileChildren = (wipFiber: Fiber, elements: VNode[]) => {
+const toElement = (child: VChild) => {
+  if (child == null || typeof child === 'boolean') {
+    return null
+  }
+
+  if (typeof child !== 'object') {
+    return {
+      type: TEXT_NODE_TYPE,
+      props: {
+        nodeValue: child,
+        children: [],
+      },
+    }
+  }
+
+  return child
+}
+
+const reconcileChildren = (wipFiber: Fiber, children: VChild | VChild[]) => {
+  const elements = (Array.isArray(children) ? children : [children]).map(toElement)
+
   let index = 0
   let oldFiber = wipFiber.alternate && wipFiber.alternate.child
   let prevSibling: Fiber | null | undefined = null
 
-  while (
-    index < elements.length ||
-    oldFiber != null
-  ) {
+  while (index < elements.length || oldFiber != null) {
     const element = elements[index]
     let newFiber: Fiber | null = null
 
