@@ -2,5 +2,5 @@
   "private": true,
   "main": "../dist/fiberworks-client.cjs.js",
   "module": "../dist/fiberworks-client.esm.js",
-  "types": "../dist/types/fiberworks-client.d.ts"
+  "types": "../dist/types/client/fiberworks-client.d.ts"
 }

@@ -1,6 +1,6 @@
-import { DELETION_EFFECT_TYPE, EffectTag, PLACEMENT_EFFECT_TYPE, UPDATE_EFFECT_TYPE } from './constants/effect-type'
-import { ROOT_NODE_TYPE, TEXT_NODE_TYPE } from './constants/node-type'
-import { requestSchedule } from './lib/scheduler'
+import { DELETION_EFFECT_TYPE, EffectTag, PLACEMENT_EFFECT_TYPE, UPDATE_EFFECT_TYPE } from '../constants/effect-type'
+import { ROOT_NODE_TYPE, TEXT_NODE_TYPE } from '../constants/node-type'
+import { requestSchedule } from './scheduler'
 
 declare global {
   namespace JSX {

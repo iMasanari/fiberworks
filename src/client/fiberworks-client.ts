@@ -1,6 +1,6 @@
-import { DELETION_EFFECT_TYPE, PLACEMENT_EFFECT_TYPE, UPDATE_EFFECT_TYPE } from './constants/effect-type'
-import { TEXT_NODE_TYPE } from './constants/node-type'
-import { Commit, CommitNode } from './fiberworks'
+import { DELETION_EFFECT_TYPE, PLACEMENT_EFFECT_TYPE, UPDATE_EFFECT_TYPE } from '../constants/effect-type'
+import { TEXT_NODE_TYPE } from '../constants/node-type'
+import { Commit, CommitNode } from '../worker/fiberworks'
 
 const domMap = new Map<number, Element | Text>()
 
