@@ -4,24 +4,10 @@ import { Commit, CommitNode } from '../worker/fiberworks'
 
 const domMap = new Map<number, Element | Text>()
 
-let _workingId = 0
-let currentWorkingId: number
-
-let isWorking = () => _workingId !== currentWorkingId
-
-const dirtyValueSet = new Set<HTMLElement>()
+let workIdCount = 0
 
 const setAttribute = ($target: any, name: string, value: any) => {
-  let tagName: string
-
-  if (name === 'value' && ((tagName = $target.tagName.toLowerCase()) === 'input' || tagName === 'textarea')) {
-    if (isWorking() && dirtyValueSet.has($target)) {
-    } else {
-      $target.value = value
-      dirtyValueSet.delete($target)
-    }
-  }
-  else if (name in $target && name !== 'list') {
+  if (name in $target && name !== 'list') {
     $target[name] = value
   }
   else if (value == null || value === false) {
@@ -59,17 +45,11 @@ const createElement = (node: CommitNode, worker: Worker) => {
         domId: node.domId,
         event: key,
         payload: fn(e),
-        workingId: ++_workingId,
+        workingId: ++workIdCount,
       })
     }
 
     $element.addEventListener(key, listener, false)
-  }
-
-  if ((node.type === 'input' || node.type === 'textarea') && node.props.value != null) {
-    $element.addEventListener('input', () => {
-      dirtyValueSet.add($element)
-    }, false)
   }
 
   return $element
@@ -100,15 +80,24 @@ interface MessageData {
 
 export const createApp = (workerPath: Worker | string, target: Element) => {
   const worker = typeof workerPath === 'string' ? new Worker(workerPath) : workerPath
+  let commitsQueue: Commit[][] = []
 
   domMap.set(0, target)
 
   worker.addEventListener('message', ({ data }: MessageEvent<MessageData>) => {
-    currentWorkingId = data.workingId
+    commitsQueue.push(data.commits)
 
-    for (const commit of data.commits) {
-      commitDom(commit, worker)
+    if (data.workingId !== workIdCount) {
+      return
     }
+
+    commitsQueue.forEach(commits =>
+      commits.forEach(commit =>
+        commitDom(commit, worker)
+      )
+    )
+
+    commitsQueue = []
   })
 
   return {

@@ -143,7 +143,7 @@ const commitDeletion = (fiber: Fiber, commits: Commit[]) => {
 }
 
 let clientParams: any
-let workingId: number
+let workingId = 0
 
 export const registerApp = (element: VNode) => {
   const render = () => {
