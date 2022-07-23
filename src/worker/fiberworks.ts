@@ -33,19 +33,18 @@ export type Commit =
   | DeletionCommit
   | UpdateCommit
 
-interface DomNode {
-  type: string
-  domId: number
-  props: Record<string, any>
-  events: Record<string, any>
-  listeners: Record<string, any>
+interface EffectData {
+  props?: Record<string, any> | null
+  events?: Record<string, any> | null
+  listeners?: Record<string, any> | null
 }
 
 interface Fiber {
   type: string | Component
   props: Record<string, any>
+  domId?: number
   effectTag?: EffectTag
-  dom?: DomNode
+  effectData?: EffectData
   alternate?: Fiber | null
   parent?: Fiber | null
   child?: Fiber | null
@@ -53,30 +52,7 @@ interface Fiber {
   hooks?: any[]
 }
 
-let _domId = 0
-let domMap = new Map<number, DomNode>()
-
-const createDom = (fiber: Fiber) => {
-  const eventKeys = Object.keys(fiber.props).filter(isEvent)
-
-  const dom: DomNode = {
-    type: fiber.type as string,
-    domId: ++_domId,
-    props: Object.fromEntries(
-      Object.keys(fiber.props)
-        .filter(isProperty)
-        .map(key => [key, fiber.props[key]] as const)
-    ),
-    events: Object.fromEntries(
-      eventKeys.map(key => [key.toLowerCase().substring(2), fiber.props[key].bridge] as const)
-    ),
-    listeners: Object.fromEntries(
-      eventKeys.map(key => [key.toLowerCase().substring(2), fiber.props[key].listener] as const)
-    ),
-  }
-
-  return dom
-}
+const eventListenersMap = new Map<number, Record<string, (arg: unknown) => void>>()
 
 const commitRoot = () => {
   const commits: Commit[] = []
@@ -95,30 +71,41 @@ const commitRoot = () => {
 }
 
 const commitWork = (fiber: Fiber, commits: Commit[]) => {
-  if (fiber.effectTag === PLACEMENT_EFFECT_TYPE && fiber.dom) {
+  if (fiber.effectTag === PLACEMENT_EFFECT_TYPE && fiber.domId) {
     let domParentFiber = fiber.parent!
-    while (!domParentFiber.dom) {
+    while (domParentFiber.domId == null) {
       domParentFiber = domParentFiber.parent!
     }
 
-    const domParent = domParentFiber.dom
+    const { props, events, listeners } = fiber.effectData!
 
-    domMap.set(fiber.dom.domId, fiber.dom)
-
-    const { listeners, ...commitNode } = fiber.dom
+    eventListenersMap.set(fiber.domId, listeners!)
 
     commits.push({
       type: PLACEMENT_EFFECT_TYPE,
-      domId: domParent.domId,
-      node: commitNode,
+      domId: domParentFiber.domId,
+      node: {
+        type: fiber.type as string,
+        domId: fiber.domId,
+        props: props!,
+        events: events!,
+      },
     })
-  } else if (fiber.effectTag === UPDATE_EFFECT_TYPE && fiber.dom) {
-    commitUpdate(
-      fiber.dom,
-      fiber.alternate!.props,
-      fiber.props,
-      commits
-    )
+  } else if (fiber.effectTag === UPDATE_EFFECT_TYPE && fiber.domId) {
+    const { props, listeners } = fiber.effectData!
+
+    if (listeners) {
+      // TODO: update client event hundler
+      eventListenersMap.set(fiber.domId, listeners)
+    }
+
+    if (props) {
+      commits.push({
+        type: UPDATE_EFFECT_TYPE,
+        domId: fiber.domId,
+        props,
+      })
+    }
   } else if (fiber.effectTag === DELETION_EFFECT_TYPE) {
     commitDeletion(fiber, commits)
     return
@@ -130,62 +117,20 @@ const commitWork = (fiber: Fiber, commits: Commit[]) => {
 const isEvent = (key: string) =>
   key[0] === 'o' && key[1] === 'n'
 
-const isProperty = (key: string) =>
-  key !== 'children' && !isEvent(key)
-
-const getDiffProps = <T>(oldProps: T, props: T) => {
-  let isChange = false
-  const result = {} as T
-
-  for (const key in { ...props, ...oldProps }) {
-    if (isProperty(key) && props[key] !== oldProps[key]) {
-      result[key] = props[key]
-      isChange = true
-    }
-  }
-
-  return isChange ? result : null
-}
-
-const commitUpdate = (dom: DomNode, prevProps: Record<string, any>, nextProps: Record<string, any>, commits: Commit[]) => {
-  const diff = getDiffProps(prevProps, nextProps)
-
-  if (diff) {
-    // props.forEach(([name, value]) => {
-    //   dom.props[name] = value
-    // })
-
-    commits.push({
-      type: UPDATE_EFFECT_TYPE,
-      domId: dom.domId,
-      props: diff,
-    })
-  }
-
-  // TODO: remove event & update client event hundler
-  for (const key of Object.keys(nextProps)) {
-    if (isEvent(key)) {
-      const eventType = key.toLowerCase().substring(2)
-
-      dom.listeners[eventType] = nextProps[key].listener
-    }
-  }
-}
-
 const commitDeletion = (fiber: Fiber, commits: Commit[]) => {
   const domIdList: number[] = []
 
   let nextFiber: Fiber | null | undefined = fiber
   while (nextFiber) {
-    if (nextFiber.dom) {
-      domIdList.push(nextFiber.dom.domId)
+    if (nextFiber.domId) {
+      domIdList.push(nextFiber.domId)
     }
 
     nextFiber = getNextFiber(nextFiber, fiber)
   }
 
   if (domIdList.length) {
-    domIdList.forEach(domId => domMap.delete(domId))
+    domIdList.forEach(domId => eventListenersMap.delete(domId))
 
     const target = domIdList.shift()!
 
@@ -202,15 +147,8 @@ let workingId: number
 
 export const registerApp = (element: VNode) => {
   const render = () => {
-    const rootDom: DomNode = {
-      type: '#ROOT',
-      domId: 0,
-      props: {},
-      events: {},
-      listeners: {},
-    }
 
-    update(rootDom, { children: [element] })
+    update({ children: [element] })
   }
 
   addEventListener('message', ({ data }) => {
@@ -218,9 +156,8 @@ export const registerApp = (element: VNode) => {
       clientParams = data.payload
       render()
     } else if (data.type === 'event') {
-      const workNode = domMap.get(data.domId)
+      eventListenersMap.get(data.domId)?.[data.event]?.(data.payload)
 
-      workNode?.listeners[data.event]?.(data.payload)
       workingId = data.workingId
     }
   })
@@ -243,10 +180,12 @@ const scheduler = () => {
   return !!nextUnitOfWork
 }
 
-const update = (dom: DomNode, props: Record<string, any>) => {
+const update = (props: Record<string, any>) => {
+  const ROOT_DOM_ID = 0
+
   wipRoot = {
     type: ROOT_NODE_TYPE,
-    dom,
+    domId: ROOT_DOM_ID,
     props,
     alternate: currentRoot,
   }
@@ -292,21 +231,85 @@ const getNextFiber = (fiber: Fiber, baseFiber?: Fiber) => {
   return null
 }
 
-let wipFiber: Fiber | null = null
+let wipHooksFiber: Fiber | null = null
 let hookIndex = 0
 
 const updateFunctionComponent = (fiber: Fiber) => {
-  wipFiber = fiber
+  wipHooksFiber = fiber
   hookIndex = 0
-  wipFiber.hooks = []
+  wipHooksFiber.hooks = []
   reconcileChildren(fiber, (fiber.type as Component)(fiber.props))
 }
 
+let _domId = 0
+
 const updateHostComponent = (fiber: Fiber) => {
-  if (!fiber.dom) {
-    fiber.dom = createDom(fiber)
+  if (fiber.domId == null) {
+    fiber.domId = ++_domId
   }
+
   reconcileChildren(fiber, fiber.props.children)
+}
+
+const createPlacementFiber = (element: VNode<Record<string, any>>, parentFiber: Fiber): Fiber => {
+  const props = {} as Record<string, any>
+  const events = {} as Record<string, any>
+  const listeners = {} as Record<string, any>
+
+  for (const key in element.props) {
+    if (isEvent(key)) {
+      const eventType = key.toLowerCase().substring(2)
+
+      events[eventType] = element.props[key].bridge
+      listeners[eventType] = element.props[key].listener
+    } else if (key !== 'children') {
+      props[key] = element.props[key]
+    }
+  }
+
+  return {
+    type: element.type,
+    props: element.props,
+    parent: parentFiber,
+    alternate: null,
+    effectTag: PLACEMENT_EFFECT_TYPE,
+    effectData: {
+      props,
+      events,
+      listeners,
+    },
+  }
+}
+
+const createUpdateFiber = (element: VNode<Record<string, any>>, parentFiber: Fiber, oldFiber: Fiber): Fiber => {
+  let hasProps = false
+  let hasListeners = false
+  const props = {} as Record<string, any>
+  const listeners = {} as Record<string, any>
+
+  for (const key in element.props) {
+    if (isEvent(key)) {
+      // TODO: update client event hundler
+      listeners[key.toLowerCase().substring(2)] = element.props[key].listener
+      hasListeners = true
+    } else if (key !== 'children' && element.props[key] !== oldFiber.props[key]) {
+      props[key] = element.props[key]
+      hasProps = true
+    }
+  }
+
+  return {
+    type: oldFiber.type,
+    props: element.props,
+    domId: oldFiber.domId,
+    parent: parentFiber,
+    alternate: oldFiber,
+    effectTag: UPDATE_EFFECT_TYPE,
+    effectData: {
+      props: hasProps ? props : null,
+      listeners: hasListeners ? listeners : null,
+    },
+  }
 }
 
 const toElement = (child: VChild) => {
@@ -334,7 +337,7 @@ const reconcileChildren = (wipFiber: Fiber, children: VChild | VChild[]) => {
   let oldFiber = wipFiber.alternate && wipFiber.alternate.child
   let prevSibling: Fiber | null | undefined = null
 
-  while (index < elements.length || oldFiber != null) {
+  while (index < elements.length || oldFiber) {
     const element = elements[index]
     let newFiber: Fiber | null = null
 
@@ -344,23 +347,10 @@ const reconcileChildren = (wipFiber: Fiber, children: VChild | VChild[]) => {
       element.type == oldFiber.type
 
     if (sameType) {
-      newFiber = {
-        type: oldFiber!.type,
-        props: element.props,
-        dom: oldFiber!.dom,
-        parent: wipFiber,
-        alternate: oldFiber!,
-        effectTag: UPDATE_EFFECT_TYPE,
-      }
+      newFiber = createUpdateFiber(element, wipFiber, oldFiber!)
     }
     if (element && !sameType) {
-      newFiber = {
-        type: element.type,
-        props: element.props,
-        parent: wipFiber,
-        alternate: null,
-        effectTag: PLACEMENT_EFFECT_TYPE,
-      }
+      newFiber = createPlacementFiber(element, wipFiber)
     }
     if (oldFiber && !sameType) {
       oldFiber.effectTag = DELETION_EFFECT_TYPE
@@ -402,9 +392,9 @@ export const createEventBridge = <A, R>(bridge: (arg: A) => R) => {
 export const useState = <T>(initial: T) => {
   type Action = T | ((state: T) => void)
   const oldHook =
-    wipFiber!.alternate &&
-    wipFiber!.alternate.hooks &&
-    wipFiber!.alternate.hooks[hookIndex]
+    wipHooksFiber!.alternate &&
+    wipHooksFiber!.alternate.hooks &&
+    wipHooksFiber!.alternate.hooks[hookIndex]
 
   const hook = {
     state: oldHook ? oldHook.state as T : initial,
@@ -418,10 +408,10 @@ export const useState = <T>(initial: T) => {
 
   const setState = (action: Action) => {
     hook.queue.push(action)
-    update(currentRoot!.dom!, currentRoot!.props)
+    update(currentRoot!.props)
   }
 
-  wipFiber!.hooks!.push(hook)
+  wipHooksFiber!.hooks!.push(hook)
   hookIndex++
 
   return [hook.state, setState] as [T, (action: Action) => void]

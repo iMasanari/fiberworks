@@ -17,10 +17,10 @@ export interface Component<P = object> {
   (props: P): VNode<P>
 }
 
-export type VChild = VNode | string | number | boolean | null | undefined
+export type VChild<P = object> = VNode<P> | string | number | boolean | null | undefined
 
 interface Props {
-  children: VNode | string | (VNode | string)[]
+  children: VChild | VChild[]
 }
 
 export const jsx = (type: string | Component, props: Props, key: string | number): VNode => {
