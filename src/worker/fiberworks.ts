@@ -1,37 +1,9 @@
-import { DELETION_EFFECT_TYPE, EffectTag, PLACEMENT_EFFECT_TYPE, UPDATE_EFFECT_TYPE } from '../constants/effect-type'
+import { DELETION_EFFECT, EffectTag, PLACEMENT_EFFECT, UPDATE_EFFECT } from '../constants/effects'
+import { DELETION_MUTATION, UPDATE_MUTATION, PLACEMENT_MUTATION } from '../constants/mutations'
+import { Mutation } from '../constants/mutations'
 import { ROOT_NODE_TYPE, TEXT_NODE_TYPE } from '../constants/node-type'
 import { Component, VChild, VNode } from './jsx'
 import { requestSchedule } from './scheduler'
-
-export interface CommitNode {
-  type: string
-  domId: number
-  props: Record<string, string | number | boolean | null>
-  events: Record<string, string>
-}
-
-interface PlacementCommit {
-  type: typeof PLACEMENT_EFFECT_TYPE
-  domId: number
-  node: CommitNode
-}
-
-interface DeletionCommit {
-  type: typeof DELETION_EFFECT_TYPE
-  domId: number
-  children: number[]
-}
-
-interface UpdateCommit {
-  type: typeof UPDATE_EFFECT_TYPE
-  domId: number
-  props: Record<string, any>
-}
-
-export type Commit =
-  | PlacementCommit
-  | DeletionCommit
-  | UpdateCommit
 
 interface EffectData {
   props?: Record<string, any> | null
@@ -55,23 +27,23 @@ interface Fiber {
 const eventListenersMap = new Map<number, Record<string, (arg: unknown) => void>>()
 
 const commitRoot = () => {
-  const commits: Commit[] = []
+  const mutations: Mutation[] = []
 
-  deletions.forEach(fiber => commitWork(fiber, commits))
+  deletions.forEach(fiber => commitWork(fiber, mutations))
 
   let nextFiber = wipRoot!.child
   while (nextFiber) {
-    nextFiber = commitWork(nextFiber, commits)
+    nextFiber = commitWork(nextFiber, mutations)
   }
 
-  postMessage({ workingId, commits })
+  postMessage({ workingId, mutations })
 
   currentRoot = wipRoot
   wipRoot = null
 }
 
-const commitWork = (fiber: Fiber, commits: Commit[]) => {
-  if (fiber.effectTag === PLACEMENT_EFFECT_TYPE && fiber.domId) {
+const commitWork = (fiber: Fiber, mutations: Mutation[]) => {
+  if (fiber.effectTag === PLACEMENT_EFFECT && fiber.domId) {
     let domParentFiber = fiber.parent!
     while (domParentFiber.domId == null) {
       domParentFiber = domParentFiber.parent!
@@ -81,8 +53,8 @@ const commitWork = (fiber: Fiber, commits: Commit[]) => {
 
     eventListenersMap.set(fiber.domId, listeners!)
 
-    commits.push({
-      type: PLACEMENT_EFFECT_TYPE,
+    mutations.push({
+      type: PLACEMENT_MUTATION,
       domId: domParentFiber.domId,
       node: {
         type: fiber.type as string,
@@ -91,7 +63,7 @@ const commitWork = (fiber: Fiber, commits: Commit[]) => {
         events: events!,
       },
     })
-  } else if (fiber.effectTag === UPDATE_EFFECT_TYPE && fiber.domId) {
+  } else if (fiber.effectTag === UPDATE_EFFECT && fiber.domId) {
     const { props, listeners } = fiber.effectData!
 
     if (listeners) {
@@ -100,14 +72,14 @@ const commitWork = (fiber: Fiber, commits: Commit[]) => {
     }
 
     if (props) {
-      commits.push({
-        type: UPDATE_EFFECT_TYPE,
+      mutations.push({
+        type: UPDATE_MUTATION,
         domId: fiber.domId,
         props,
       })
     }
-  } else if (fiber.effectTag === DELETION_EFFECT_TYPE) {
-    commitDeletion(fiber, commits)
+  } else if (fiber.effectTag === DELETION_EFFECT) {
+    commitDeletion(fiber, mutations)
     return
   }
 
@@ -117,7 +89,7 @@ const commitWork = (fiber: Fiber, commits: Commit[]) => {
 const isEvent = (key: string) =>
   key[0] === 'o' && key[1] === 'n'
 
-const commitDeletion = (fiber: Fiber, commits: Commit[]) => {
+const commitDeletion = (fiber: Fiber, mutations: Mutation[]) => {
   const domIdList: number[] = []
 
   let nextFiber: Fiber | null | undefined = fiber
@@ -134,8 +106,8 @@ const commitDeletion = (fiber: Fiber, commits: Commit[]) => {
 
     const target = domIdList.shift()!
 
-    commits.push({
-      type: DELETION_EFFECT_TYPE,
+    mutations.push({
+      type: DELETION_MUTATION,
       domId: target,
       children: domIdList,
     })
@@ -272,7 +244,7 @@ const createPlacementFiber = (element: VNode<Record<string, any>>, parentFiber: 
     props: element.props,
     parent: parentFiber,
     alternate: null,
-    effectTag: PLACEMENT_EFFECT_TYPE,
+    effectTag: PLACEMENT_EFFECT,
     effectData: {
       props,
       events,
@@ -304,7 +276,7 @@ const createUpdateFiber = (element: VNode<Record<string, any>>, parentFiber: Fib
     domId: oldFiber.domId,
     parent: parentFiber,
     alternate: oldFiber,
-    effectTag: UPDATE_EFFECT_TYPE,
+    effectTag: UPDATE_EFFECT,
     effectData: {
       props: hasProps ? props : null,
       listeners: hasListeners ? listeners : null,
@@ -353,7 +325,7 @@ const reconcileChildren = (wipFiber: Fiber, children: VChild | VChild[]) => {
       newFiber = createPlacementFiber(element, wipFiber)
     }
     if (oldFiber && !sameType) {
-      oldFiber.effectTag = DELETION_EFFECT_TYPE
+      oldFiber.effectTag = DELETION_EFFECT
 
       deletions.push(oldFiber)
     }
