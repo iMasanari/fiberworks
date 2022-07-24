@@ -1,28 +1,26 @@
 declare global {
   namespace JSX {
-    interface Element extends VNode<any> { }
+    interface Element extends VNode { }
     interface IntrinsicElements {
       [elemName: string]: any
     }
   }
 }
 
-export interface VNode<P = object> {
+type DefaultProps = Record<string, unknown>
+
+export interface VNode<P = DefaultProps> {
   type: string | Component<P>
   props: P
   key?: string | number | undefined
 }
 
-export interface Component<P = object> {
+export interface Component<P = DefaultProps> {
   (props: P): VNode<P>
 }
 
-export type VChild<P = object> = VNode<P> | string | number | boolean | null | undefined
+export type VChild<P = DefaultProps> = VNode<P> | string | number | boolean | null | undefined
 
-interface Props {
-  children: VChild | VChild[]
-}
-
-export const jsx = (type: string | Component, props: Props, key: string | number): VNode => {
+export const jsx = <P = DefaultProps>(type: string | Component<P>, props: P, key: string | number): VNode<P> => {
   return { type, props, key }
 }

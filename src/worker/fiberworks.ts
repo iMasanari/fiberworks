@@ -6,14 +6,14 @@ import { Component, VChild, VNode } from './jsx'
 import { requestSchedule } from './scheduler'
 
 interface EffectData {
-  props?: Record<string, any> | null
-  events?: Record<string, any> | null
-  listeners?: Record<string, any> | null
+  props?: Record<string, unknown> | null
+  events?: Record<string, string> | null
+  listeners?: Record<string, (arg: unknown) => void> | null
 }
 
-interface Fiber {
-  type: string | Component
-  props: Record<string, any>
+interface Fiber<P = Record<string, unknown>> {
+  type: string | Component<P>
+  props: P
   domId?: number
   effectTag?: EffectTag
   effectData?: EffectData
@@ -55,13 +55,11 @@ const commitWork = (fiber: Fiber, mutations: Mutation[]) => {
 
     mutations.push({
       type: PLACEMENT_MUTATION,
-      domId: domParentFiber.domId,
-      node: {
-        type: fiber.type as string,
-        domId: fiber.domId,
-        props: props!,
-        events: events!,
-      },
+      domId: fiber.domId,
+      parentId: domParentFiber.domId,
+      nodeType: fiber.type as string,
+      props: props!,
+      events: events!,
     })
   } else if (fiber.effectTag === UPDATE_EFFECT && fiber.domId) {
     const { props, listeners } = fiber.effectData!
@@ -210,7 +208,10 @@ const updateFunctionComponent = (fiber: Fiber) => {
   wipHooksFiber = fiber
   hookIndex = 0
   wipHooksFiber.hooks = []
-  reconcileChildren(fiber, (fiber.type as Component)(fiber.props))
+
+  const child = (fiber.type as Component)(fiber.props)
+
+  reconcileChildren(fiber, [child])
 }
 
 let _domId = 0
@@ -220,20 +221,23 @@ const updateHostComponent = (fiber: Fiber) => {
     fiber.domId = ++_domId
   }
 
-  reconcileChildren(fiber, fiber.props.children)
+  const children = fiber.props.children as VChild | VChild[]
+
+  reconcileChildren(fiber, Array.isArray(children) ? children : [children])
 }
 
-const createPlacementFiber = (element: VNode<Record<string, any>>, parentFiber: Fiber): Fiber => {
-  const props = {} as Record<string, any>
-  const events = {} as Record<string, any>
-  const listeners = {} as Record<string, any>
+const createPlacementFiber = (element: VNode<Record<string, unknown>>, parentFiber: Fiber): Fiber => {
+  const props = {} as Record<string, unknown>
+  const events = {} as Record<string, string>
+  const listeners = {} as Record<string, (arg: unknown) => void>
 
   for (const key in element.props) {
     if (isEvent(key)) {
       const eventType = key.toLowerCase().substring(2)
+      const event = element.props[key] as BridgeEvent<unknown>
 
-      events[eventType] = element.props[key].bridge
-      listeners[eventType] = element.props[key].listener
+      events[eventType] = event.bridge
+      listeners[eventType] = event.listener
     } else if (key !== 'children') {
       props[key] = element.props[key]
     }
@@ -284,7 +288,7 @@ const createUpdateFiber = (element: VNode<Record<string, any>>, parentFiber: Fib
   }
 }
 
-const toElement = (child: VChild) => {
+const normalizeVNode = (child: VChild) => {
   if (child == null || typeof child === 'boolean') {
     return null
   }
@@ -302,8 +306,8 @@ const toElement = (child: VChild) => {
   return child
 }
 
-const reconcileChildren = (wipFiber: Fiber, children: VChild | VChild[]) => {
-  const elements = (Array.isArray(children) ? children : [children]).map(toElement)
+const reconcileChildren = (wipFiber: Fiber, children: VChild[]) => {
+  const elements = children.map(normalizeVNode)
 
   let index = 0
   let oldFiber = wipFiber.alternate && wipFiber.alternate.child

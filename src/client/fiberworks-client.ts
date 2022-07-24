@@ -1,4 +1,4 @@
-import { Mutation, PlacementMutationNode, UPDATE_MUTATION, PLACEMENT_MUTATION, DELETION_MUTATION } from '../constants/mutations'
+import { Mutation, UPDATE_MUTATION, PLACEMENT_MUTATION, DELETION_MUTATION, PlacementMutation } from '../constants/mutations'
 import { TEXT_NODE_TYPE } from '../constants/node-type'
 
 const domMap = new Map<number, Element | Text>()
@@ -15,31 +15,31 @@ const setAttribute = ($target: any, name: string, value: any) => {
   }
 }
 
-const createElement = (node: PlacementMutationNode, worker: Worker) => {
-  if (node.type === TEXT_NODE_TYPE) {
-    const $text = document.createTextNode(node.props.nodeValue as string)
-    domMap.set(node.domId, $text)
+const createElement = (mutation: PlacementMutation, worker: Worker) => {
+  if (mutation.nodeType === TEXT_NODE_TYPE) {
+    const $text = document.createTextNode(mutation.props.nodeValue as string)
+    domMap.set(mutation.domId, $text)
 
     return $text
   }
 
-  const $element = document.createElement(node.type)
+  const $element = document.createElement(mutation.nodeType)
 
-  domMap.set(node.domId, $element)
+  domMap.set(mutation.domId, $element)
 
-  $element.dataset.domId = node.domId + ''
+  $element.dataset.domId = mutation.domId + ''
 
-  for (const name in node.props) {
-    setAttribute($element, name, node.props[name])
+  for (const name in mutation.props) {
+    setAttribute($element, name, mutation.props[name])
   }
 
-  for (const key in node.events) {
-    const fn = new Function('a', `return(${node.events[key]})(a)`)
+  for (const key in mutation.events) {
+    const fn = new Function('a', `return(${mutation.events[key]})(a)`)
 
     const listener = (e: Event) => {
       worker.postMessage({
         type: 'event',
-        domId: node.domId,
+        domId: mutation.domId,
         event: key,
         payload: fn(e),
         workingId: ++workIdCount,
@@ -53,15 +53,19 @@ const createElement = (node: PlacementMutationNode, worker: Worker) => {
 }
 
 const mutate = (mutation: Mutation, worker: Worker) => {
-  const $target = domMap.get(mutation.domId)!
-
   if (mutation.type === PLACEMENT_MUTATION) {
-    $target.appendChild(createElement(mutation.node, worker))
+    const $parent = domMap.get(mutation.parentId)!
+
+    $parent.appendChild(createElement(mutation, worker))
   } else if (mutation.type === UPDATE_MUTATION) {
+    const $target = domMap.get(mutation.domId)!
+
     for (const key in mutation.props) {
       setAttribute($target, key, mutation.props[key])
     }
   } else if (mutation.type === DELETION_MUTATION) {
+    const $target = domMap.get(mutation.domId)!
+
     $target.parentNode!.removeChild($target)
     domMap.delete(mutation.domId)
     mutation.children.forEach(domId => domMap.delete(domId))
