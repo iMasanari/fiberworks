@@ -1,18 +1,26 @@
 {
-  "name": "fiberworks",
+  "name": "@imasanari/fiberworks",
   "version": "0.1.0",
   "description": "",
   "main": "./dist/fiberworks.cjs.js",
   "module": "./dist/fiberworks.esm.js",
   "types": "./dist/types/fiberworks.d.ts",
+  "files": [
+    "client",
+    "dist",
+    "jsx-dev-runtime",
+    "jsx-runtime"
+  ],
   "scripts": {
+    "prebuild": "npm run clean",
     "build": "npm run build:rollup && npm run build:types",
     "build:rollup": "rollup -c",
     "build:types": "tsc -p tsconfig.declaration.json",
+    "clean": "rm -rf dist",
     "watch": "rollup -c -w"
   },
   "keywords": [],
-  "author": "",
+  "author": "iMasanari",
   "license": "MIT",
   "devDependencies": {
     "rollup": "^2.77.0",
