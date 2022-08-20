@@ -214,7 +214,7 @@ const updateFunctionComponent = (fiber: Fiber) => {
 
   const child = (fiber.type as Component)(fiber.props)
 
-  reconcileChildren(fiber, [child])
+  reconcileChildren(fiber, [child], deletions)
 }
 
 let _domId = 0
@@ -226,7 +226,7 @@ const updateHostComponent = (fiber: Fiber) => {
 
   const children = fiber.props.children as VChild | VChild[]
 
-  reconcileChildren(fiber, Array.isArray(children) ? children : [children])
+  reconcileChildren(fiber, Array.isArray(children) ? children : [children], deletions)
 }
 
 const createPlacementFiber = (element: VNode<Record<string, unknown>>, parentFiber: Fiber): Fiber => {
@@ -312,7 +312,7 @@ const normalizeVNode = (child: VChild) => {
 /**
  * @interal
  */
-export const reconcileChildren = (wipFiber: Fiber, children: VChild[]) => {
+export const reconcileChildren = (wipFiber: Fiber, children: VChild[], deletions: Fiber[]) => {
   const elements = children.map(normalizeVNode)
 
   let index = 0

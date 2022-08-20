@@ -1,6 +1,12 @@
-import { expect, test } from 'vitest'
+import { beforeEach, expect, test } from 'vitest'
 import { Fiber } from '../src/worker/fiberworks'
 import { reconcileChildren } from '../src/worker/fiberworks'
+
+let deletions: Fiber[] = []
+
+beforeEach(() => {
+  deletions = []
+})
 
 test('placement child', () => {
   const fiber: Fiber = {
@@ -10,7 +16,7 @@ test('placement child', () => {
 
   reconcileChildren(fiber, [
     { type: 'span', props: {} },
-  ])
+  ], deletions)
 
   expect(fiber).toEqual<Fiber>({
     type: 'div',
@@ -30,6 +36,8 @@ test('placement child', () => {
       listeners: {},
     },
   })
+
+  expect(deletions).toEqual([])
 })
 
 test('placement children', () => {
@@ -41,7 +49,7 @@ test('placement children', () => {
   reconcileChildren(fiber, [
     { type: 'span', props: {} },
     { type: 'em', props: {} },
-  ])
+  ], deletions)
 
   expect(fiber).toEqual<Fiber>({
     type: 'div',
@@ -75,6 +83,8 @@ test('placement children', () => {
       listeners: {},
     },
   })
+
+  expect(deletions).toEqual([])
 })
 
 test('update child', () => {
@@ -96,7 +106,7 @@ test('update child', () => {
 
   reconcileChildren(fiber, [
     { type: 'span', props: {} },
-  ])
+  ], deletions)
 
   expect(fiber).toEqual<Fiber>({
     type: 'div',
@@ -117,6 +127,8 @@ test('update child', () => {
       listeners: null,
     },
   })
+
+  expect(deletions).toEqual([])
 })
 
 test('delete child', () => {
@@ -135,7 +147,7 @@ test('delete child', () => {
     parent: fiber.alternate,
   }
 
-  reconcileChildren(fiber, [])
+  reconcileChildren(fiber, [], deletions)
 
   expect(fiber).toEqual<Fiber>({
     type: 'div',
@@ -143,6 +155,13 @@ test('delete child', () => {
     child: null,
     alternate: expect.anything(),
   })
+
+  expect(deletions).toEqual<Fiber[]>([{
+    type: 'span',
+    props: {},
+    parent: fiber.alternate,
+    effectTag: 'DELETION_EFFECT',
+  }])
 })
 
 test('empty children', () => {
@@ -151,10 +170,12 @@ test('empty children', () => {
     props: {},
   }
 
-  reconcileChildren(fiber, [])
+  reconcileChildren(fiber, [], deletions)
 
   expect(fiber).toEqual({
     type: 'div',
     props: {},
   })
+
+  expect(deletions).toEqual([])
 })
