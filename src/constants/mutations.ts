@@ -6,6 +6,7 @@ export interface PlacementMutation {
   type: typeof PLACEMENT_MUTATION
   domId: number
   parentId: number
+  siblingId: number | null | undefined
   nodeType: string
   props: Record<string, unknown>
   events: Record<string, string>

@@ -16,7 +16,7 @@ export interface VNode<P = DefaultProps> {
 }
 
 export interface Component<P = DefaultProps> {
-  (props: P): VNode<P>
+  (props: P): VNode<P> | null
 }
 
 export type VChild<P = DefaultProps> = VNode<P> | string | number | boolean | null | undefined

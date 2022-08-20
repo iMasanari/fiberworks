@@ -1,7 +1,7 @@
-import { DELETION_EFFECT, EffectTag, PLACEMENT_EFFECT, UPDATE_EFFECT } from '../constants/effects'
+import { DELETION_EFFECT, PLACEMENT_EFFECT, UPDATE_EFFECT } from '../constants/effects'
 import { DELETION_MUTATION, Mutation, PLACEMENT_MUTATION, UPDATE_MUTATION } from '../constants/mutations'
 import { ROOT_NODE_TYPE } from '../constants/node-type'
-import { Fiber } from './fiber'
+import { Fiber, getHostSibling, getNextFiber } from './fiber'
 import { Component, VChild, VNode } from './jsx'
 import { reconcileChildren } from './reconciliation'
 import { requestSchedule } from './scheduler'
@@ -39,6 +39,7 @@ const commitWork = (fiber: Fiber, mutations: Mutation[]) => {
       type: PLACEMENT_MUTATION,
       domId: fiber.domId,
       parentId: domParentFiber.domId,
+      siblingId: getHostSibling(fiber)?.domId,
       nodeType: fiber.type as string,
       props: props!,
       events: events!,
@@ -161,23 +162,6 @@ const performUnitOfWork = (fiber: Fiber) => {
   }
 
   return getNextFiber(fiber)
-}
-
-const getNextFiber = (fiber: Fiber, baseFiber?: Fiber) => {
-  if (fiber.child) {
-    return fiber.child
-  }
-
-  let nextFiber: Fiber | null | undefined = fiber
-
-  while (nextFiber && nextFiber !== baseFiber) {
-    if (nextFiber.sibling) {
-      return nextFiber.sibling
-    }
-    nextFiber = nextFiber.parent
-  }
-
-  return null
 }
 
 let wipHooksFiber: Fiber | null = null

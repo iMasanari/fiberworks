@@ -54,9 +54,10 @@ const createElement = (mutation: PlacementMutation, worker: Worker) => {
 
 const mutate = (mutation: Mutation, worker: Worker) => {
   if (mutation.type === PLACEMENT_MUTATION) {
+    const $sibling = mutation.siblingId != null ? domMap.get(mutation.siblingId)! : null
     const $parent = domMap.get(mutation.parentId)!
 
-    $parent.appendChild(createElement(mutation, worker))
+    $parent.insertBefore(createElement(mutation, worker), $sibling)
   } else if (mutation.type === UPDATE_MUTATION) {
     const $target = domMap.get(mutation.domId)!
 
