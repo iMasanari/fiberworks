@@ -1,6 +1,6 @@
 import { beforeEach, expect, test } from 'vitest'
-import { Fiber } from '../src/worker/fiberworks'
-import { reconcileChildren } from '../src/worker/fiberworks'
+import { Fiber } from '../src/worker/fiber'
+import { reconcileChildren } from '../src/worker/reconciliation'
 
 let deletions: Fiber[] = []
 

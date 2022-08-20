@@ -1,31 +1,10 @@
 import { DELETION_EFFECT, EffectTag, PLACEMENT_EFFECT, UPDATE_EFFECT } from '../constants/effects'
-import { DELETION_MUTATION, UPDATE_MUTATION, PLACEMENT_MUTATION } from '../constants/mutations'
-import { Mutation } from '../constants/mutations'
-import { ROOT_NODE_TYPE, TEXT_NODE_TYPE } from '../constants/node-type'
+import { DELETION_MUTATION, Mutation, PLACEMENT_MUTATION, UPDATE_MUTATION } from '../constants/mutations'
+import { ROOT_NODE_TYPE } from '../constants/node-type'
+import { Fiber } from './fiber'
 import { Component, VChild, VNode } from './jsx'
+import { reconcileChildren } from './reconciliation'
 import { requestSchedule } from './scheduler'
-
-interface EffectData {
-  props?: Record<string, unknown> | null
-  events?: Record<string, string> | null
-  listeners?: Record<string, (arg: unknown) => void> | null
-}
-
-/**
- * @interal
- */
-export interface Fiber<P = Record<string, unknown>> {
-  type: string | Component<P>
-  props: P
-  domId?: number
-  effectTag?: EffectTag
-  effectData?: EffectData
-  alternate?: Fiber | null
-  parent?: Fiber | null
-  child?: Fiber | null
-  sibling?: Fiber | null
-  hooks?: any[]
-}
 
 const eventListenersMap = new Map<number, Record<string, (arg: unknown) => void>>()
 
@@ -86,9 +65,6 @@ const commitWork = (fiber: Fiber, mutations: Mutation[]) => {
 
   return getNextFiber(fiber)
 }
-
-const isEvent = (key: string) =>
-  key[0] === 'o' && key[1] === 'n'
 
 const commitDeletion = (fiber: Fiber, mutations: Mutation[]) => {
   const domIdList: number[] = []
@@ -227,148 +203,6 @@ const updateHostComponent = (fiber: Fiber) => {
   const children = fiber.props.children as VChild | VChild[]
 
   reconcileChildren(fiber, Array.isArray(children) ? children : [children], deletions)
-}
-
-const createPlacementFiber = (element: VNode<Record<string, unknown>>, parentFiber: Fiber): Fiber => {
-  const props = {} as Record<string, unknown>
-  const events = {} as Record<string, string>
-  const listeners = {} as Record<string, (arg: unknown) => void>
-
-  for (const key in element.props) {
-    if (isEvent(key)) {
-      const eventType = key.toLowerCase().substring(2)
-      const event = element.props[key] as BridgeEvent<unknown>
-
-      events[eventType] = event.bridge
-      listeners[eventType] = event.listener
-    } else if (key !== 'children') {
-      props[key] = element.props[key]
-    }
-  }
-
-  return {
-    type: element.type,
-    props: element.props,
-    parent: parentFiber,
-    alternate: null,
-    effectTag: PLACEMENT_EFFECT,
-    effectData: {
-      props,
-      events,
-      listeners,
-    },
-  }
-}
-
-const createUpdateFiber = (element: VNode<Record<string, any>>, parentFiber: Fiber, oldFiber: Fiber): Fiber => {
-  let hasProps = false
-  let hasListeners = false
-  const props = {} as Record<string, any>
-  const listeners = {} as Record<string, any>
-
-  for (const key in element.props) {
-    if (isEvent(key)) {
-      // TODO: update client event hundler
-      listeners[key.toLowerCase().substring(2)] = element.props[key].listener
-      hasListeners = true
-    } else if (key !== 'children' && element.props[key] !== oldFiber.props[key]) {
-      props[key] = element.props[key]
-      hasProps = true
-    }
-  }
-
-  return {
-    type: oldFiber.type,
-    props: element.props,
-    domId: oldFiber.domId,
-    parent: parentFiber,
-    alternate: oldFiber,
-    effectTag: UPDATE_EFFECT,
-    effectData: {
-      props: hasProps ? props : null,
-      listeners: hasListeners ? listeners : null,
-    },
-  }
-}
-
-const normalizeVNode = (child: VChild) => {
-  if (child == null || typeof child === 'boolean') {
-    return null
-  }
-
-  if (typeof child !== 'object') {
-    return {
-      type: TEXT_NODE_TYPE,
-      props: {
-        nodeValue: child,
-        children: [],
-      },
-    }
-  }
-
-  return child
-}
-
-/**
- * @interal
- */
-export const reconcileChildren = (wipFiber: Fiber, children: VChild[], deletions: Fiber[]) => {
-  const elements = children.map(normalizeVNode)
-
-  let index = 0
-  let oldFiber = wipFiber.alternate && wipFiber.alternate.child
-  let prevSibling: Fiber | null | undefined = null
-
-  while (index < elements.length || oldFiber) {
-    const element = elements[index]
-    let newFiber: Fiber | null = null
-
-    const sameType =
-      oldFiber &&
-      element &&
-      element.type == oldFiber.type
-
-    if (sameType) {
-      newFiber = createUpdateFiber(element, wipFiber, oldFiber!)
-    }
-    if (element && !sameType) {
-      newFiber = createPlacementFiber(element, wipFiber)
-    }
-    if (oldFiber && !sameType) {
-      oldFiber.effectTag = DELETION_EFFECT
-
-      deletions.push(oldFiber)
-    }
-
-    if (oldFiber) {
-      oldFiber = oldFiber.sibling
-    }
-
-    if (index === 0) {
-      wipFiber.child = newFiber
-    } else if (element) {
-      prevSibling!.sibling = newFiber
-    }
-
-    prevSibling = newFiber
-    index++
-  }
-}
-
-export interface BridgeEvent<T> {
-  bridge: string
-  listener: (arg: T) => void
-}
-
-export const createEventBridge = <A, R>(bridge: (arg: A) => R) => {
-  const bridgeText = bridge + ''
-
-  return (listener: (data: R) => void): BridgeEvent<R> => {
-    return {
-      listener,
-      bridge: bridgeText,
-    }
-  }
 }
 
 export const useState = <T>(initial: T) => {
