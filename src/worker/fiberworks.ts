@@ -11,7 +11,10 @@ interface EffectData {
   listeners?: Record<string, (arg: unknown) => void> | null
 }
 
-interface Fiber<P = Record<string, unknown>> {
+/**
+ * @interal
+ */
+export interface Fiber<P = Record<string, unknown>> {
   type: string | Component<P>
   props: P
   domId?: number
@@ -306,7 +309,10 @@ const normalizeVNode = (child: VChild) => {
   return child
 }
 
-const reconcileChildren = (wipFiber: Fiber, children: VChild[]) => {
+/**
+ * @interal
+ */
+export const reconcileChildren = (wipFiber: Fiber, children: VChild[]) => {
   const elements = children.map(normalizeVNode)
 
   let index = 0
