@@ -1,4 +1,4 @@
-import { DELETION_EFFECT, PLACEMENT_EFFECT, UPDATE_EFFECT } from '../constants/effects'
+import { PLACEMENT_EFFECT, UPDATE_EFFECT } from '../constants/effects'
 import { TEXT_NODE_TYPE } from '../constants/node-type'
 import { BridgeEvent } from './events'
 import { Fiber } from './fiber'
@@ -87,7 +87,7 @@ const normalizeVNode = (child: VChild) => {
   return child
 }
 
-export const reconcileChildren = (wipFiber: Fiber, children: VChild[], deletions: Fiber[]) => {
+export const reconcileChildren = (wipFiber: Fiber, children: VChild[]) => {
   const elements = children.map(normalizeVNode)
 
   let index = 0
@@ -110,7 +110,7 @@ export const reconcileChildren = (wipFiber: Fiber, children: VChild[], deletions
       newFiber = createPlacementFiber(element, wipFiber)
     }
     if (oldFiber && !sameType) {
-      oldFiber.effectTag = DELETION_EFFECT
+      const deletions = (wipFiber.deletions ||= [])
 
       deletions.push(oldFiber)
     }

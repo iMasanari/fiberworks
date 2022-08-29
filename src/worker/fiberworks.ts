@@ -1,4 +1,4 @@
-import { DELETION_EFFECT, PLACEMENT_EFFECT, UPDATE_EFFECT } from '../constants/effects'
+import { PLACEMENT_EFFECT, UPDATE_EFFECT } from '../constants/effects'
 import { DELETION_MUTATION, Mutation, PLACEMENT_MUTATION, UPDATE_MUTATION } from '../constants/mutations'
 import { ROOT_NODE_TYPE } from '../constants/node-type'
 import { Fiber, getHostSibling, getNextFiber } from './fiber'
@@ -10,8 +10,6 @@ const eventListenersMap = new Map<number, Record<string, (arg: unknown) => void>
 
 const commitRoot = () => {
   const mutations: Mutation[] = []
-
-  deletions.forEach(fiber => commitWork(fiber, mutations))
 
   let nextFiber = wipRoot!.child
   while (nextFiber) {
@@ -25,6 +23,10 @@ const commitRoot = () => {
 }
 
 const commitWork = (fiber: Fiber, mutations: Mutation[]) => {
+  if (fiber.deletions) {
+    fiber.deletions.forEach(fiber => commitDeletion(fiber, mutations))
+  }
+
   if (fiber.effectTag === PLACEMENT_EFFECT && fiber.domId) {
     let domParentFiber = fiber.parent!
     while (domParentFiber.domId == null) {
@@ -59,9 +61,6 @@ const commitWork = (fiber: Fiber, mutations: Mutation[]) => {
         props,
       })
     }
-  } else if (fiber.effectTag === DELETION_EFFECT) {
-    commitDeletion(fiber, mutations)
-    return
   }
 
   return getNextFiber(fiber)
@@ -116,7 +115,6 @@ export const registerApp = (element: VNode) => {
 let nextUnitOfWork: Fiber | null = null
 let currentRoot: Fiber | null = null
 let wipRoot: Fiber | null = null
-let deletions: Fiber[] = []
 
 const scheduler = () => {
   if (!nextUnitOfWork) return
@@ -141,7 +139,6 @@ const update = (props: Record<string, any>) => {
   }
 
   nextUnitOfWork = wipRoot
-  deletions = []
 
   requestSchedule(scheduler)
 }
@@ -174,7 +171,7 @@ const updateFunctionComponent = (fiber: Fiber) => {
 
   const child = (fiber.type as Component)(fiber.props)
 
-  reconcileChildren(fiber, [child], deletions)
+  reconcileChildren(fiber, [child])
 }
 
 let _domId = 0
@@ -186,7 +183,7 @@ const updateHostComponent = (fiber: Fiber) => {
 
   const children = fiber.props.children as VChild | VChild[]
 
-  reconcileChildren(fiber, Array.isArray(children) ? children : [children], deletions)
+  reconcileChildren(fiber, Array.isArray(children) ? children : [children])
 }
 
 export const useState = <T>(initial: T) => {

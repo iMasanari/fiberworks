@@ -17,6 +17,7 @@ export interface Fiber<P = Record<string, unknown>> {
   parent?: Fiber | null
   child?: Fiber | null
   sibling?: Fiber | null
+  deletions?: Fiber[]
   hooks?: any[]
 }
 
