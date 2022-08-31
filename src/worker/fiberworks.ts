@@ -169,9 +169,9 @@ const updateFunctionComponent = (fiber: Fiber) => {
   hookIndex = 0
   wipHooksFiber.hooks = []
 
-  const child = (fiber.type as Component)(fiber.props)
+  const children = (fiber.type as Component)(fiber.props)
 
-  reconcileChildren(fiber, [child])
+  reconcileChildren(fiber, children)
 }
 
 let _domId = 0
@@ -183,7 +183,7 @@ const updateHostComponent = (fiber: Fiber) => {
 
   const children = fiber.props.children as VChild | VChild[]
 
-  reconcileChildren(fiber, Array.isArray(children) ? children : [children])
+  reconcileChildren(fiber, children)
 }
 
 export const useState = <T>(initial: T) => {

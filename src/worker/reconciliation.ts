@@ -69,7 +69,9 @@ const createUpdateFiber = (element: VNode<Record<string, any>>, parentFiber: Fib
   }
 }
 
-const normalizeVNode = (child: VChild) => {
+const Flagment = ({ children }: any) => children
+
+const normalizeVNode = (child: VChild | VChild[]) => {
   if (child == null || typeof child === 'boolean') {
     return null
   }
@@ -84,11 +86,18 @@ const normalizeVNode = (child: VChild) => {
     }
   }
 
+  if (Array.isArray(child)) {
+    return {
+      type: Flagment,
+      props: { children: child },
+    }
+  }
+
   return child
 }
 
-export const reconcileChildren = (wipFiber: Fiber, children: VChild[]) => {
-  const elements = children.map(normalizeVNode)
+export const reconcileChildren = (wipFiber: Fiber, children: VChild | VChild[] | VChild[][]) => {
+  const elements = (Array.isArray(children) ? children : [children]).map(normalizeVNode)
 
   let index = 0
   let oldFiber = wipFiber.alternate && wipFiber.alternate.child
