@@ -119,6 +119,70 @@ test('update child', () => {
   })
 })
 
+test('update empty child', () => {
+  const fiber: Fiber = {
+    type: 'div',
+    props: {},
+    alternate: {
+      type: 'div',
+      props: {},
+    },
+  }
+
+  fiber.alternate!.child = {
+    type: 'span',
+    props: {},
+    domId: 1,
+    parent: fiber.alternate,
+    sibling: {
+      type: 'a',
+      props: {},
+      parent: fiber.alternate,
+    },
+  }
+
+  reconcileChildren(fiber, [
+    null,
+    { type: 'span', props: {} },
+    true,
+    false,
+    { type: 'a', props: {} },
+  ])
+
+  expect(fiber).toEqual<Fiber>({
+    type: 'div',
+    props: {},
+    child: expect.anything(),
+    alternate: expect.anything(),
+  })
+
+  expect(fiber.child).toEqual<Fiber>({
+    type: 'span',
+    props: {},
+    domId: 1,
+    sibling: expect.anything(),
+    alternate: expect.anything(),
+    parent: fiber,
+    effectTag: 'UPDATE_EFFECT',
+    effectData: {
+      props: null,
+      listeners: null,
+    },
+  })
+
+  expect(fiber.child?.sibling).toEqual<Fiber>({
+    type: 'a',
+    props: {},
+    alternate: expect.anything(),
+    parent: fiber,
+    effectTag: 'UPDATE_EFFECT',
+    effectData: {
+      props: null,
+      listeners: null,
+    },
+  })
+})
+
 test('delete child', () => {
   const fiber: Fiber = {
     type: 'div',
@@ -140,7 +204,6 @@ test('delete child', () => {
   expect(fiber).toEqual<Fiber>({
     type: 'div',
     props: {},
-    child: null,
     alternate: expect.anything(),
     deletions: expect.anything(),
   })

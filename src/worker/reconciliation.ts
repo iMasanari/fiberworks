@@ -105,6 +105,12 @@ export const reconcileChildren = (wipFiber: Fiber, children: VChild | VChild[] |
 
   while (index < elements.length || oldFiber) {
     const element = elements[index]
+
+    if (!element && oldFiber && index < elements.length) {
+      index++
+      continue
+    }
+
     let newFiber: Fiber | null = null
 
     const sameType =
@@ -128,13 +134,16 @@ export const reconcileChildren = (wipFiber: Fiber, children: VChild | VChild[] |
       oldFiber = oldFiber.sibling
     }
 
-    if (index === 0) {
-      wipFiber.child = newFiber
-    } else if (element) {
-      prevSibling!.sibling = newFiber
+    if (newFiber) {
+      if (!prevSibling) {
+        wipFiber.child = newFiber
+      } else {
+        prevSibling!.sibling = newFiber
+      }
+
+      prevSibling = newFiber
     }
 
-    prevSibling = newFiber
     index++
   }
 }
