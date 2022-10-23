@@ -19,7 +19,8 @@
     "clean": "rm -rf dist",
     "watch": "rollup -c -w",
     "test": "vitest run",
-    "test-watch": "vitest"
+    "test-watch": "vitest",
+    "prepublishOnly": "npm run test && npm run build"
   },
   "keywords": [],
   "author": "iMasanari",
