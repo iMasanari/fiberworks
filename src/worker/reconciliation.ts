@@ -7,7 +7,7 @@ import { VChild, VNode } from './jsx'
 const isEvent = (key: string) =>
   key[0] === 'o' && key[1] === 'n'
 
-const createPlacementFiber = (element: VNode<Record<string, unknown>>, parentFiber: Fiber): Fiber => {
+const createPlacementFiber = (element: VNode<Record<string, unknown>>): Fiber => {
   const props = {} as Record<string, unknown>
   const events = {} as Record<string, string>
   const listeners = {} as Record<string, (arg: unknown) => void>
@@ -26,8 +26,8 @@ const createPlacementFiber = (element: VNode<Record<string, unknown>>, parentFib
 
   return {
     type: element.type,
+    key: element.key,
     props: element.props,
-    parent: parentFiber,
     alternate: null,
     effectTag: PLACEMENT_EFFECT,
     effectData: {
@@ -38,7 +38,7 @@ const createPlacementFiber = (element: VNode<Record<string, unknown>>, parentFib
   }
 }
 
-const createUpdateFiber = (element: VNode<Record<string, any>>, parentFiber: Fiber, oldFiber: Fiber): Fiber => {
+const createUpdateFiber = (element: VNode<Record<string, any>>, oldFiber: Fiber): Fiber => {
   let hasProps = false
   let hasListeners = false
   const props = {} as Record<string, any>
@@ -57,9 +57,9 @@ const createUpdateFiber = (element: VNode<Record<string, any>>, parentFiber: Fib
 
   return {
     type: oldFiber.type,
+    key: oldFiber.key,
     props: element.props,
     domId: oldFiber.domId,
-    parent: parentFiber,
     alternate: oldFiber,
     effectTag: UPDATE_EFFECT,
     effectData: {
@@ -69,11 +69,37 @@ const createUpdateFiber = (element: VNode<Record<string, any>>, parentFiber: Fib
   }
 }
 
+const createFiber = (element: VNode, oldFiber?: Fiber | null | undefined) => {
+  const sameType = oldFiber && element && element.type == oldFiber.type
+
+  if (sameType) {
+    return createUpdateFiber(element, oldFiber)
+  }
+
+  return createPlacementFiber(element)
+}
+
+const appendChild = (parentFiber: Fiber, fiber: Fiber, prevSibling: Fiber | null) => {
+  fiber.parent = parentFiber
+
+  if (prevSibling) {
+    prevSibling.sibling = fiber
+  } else {
+    parentFiber.child = fiber
+  }
+}
+
+const removeChild = (parentFiber: Fiber, oldFiber: Fiber) => {
+  const deletions = (parentFiber.deletions ||= [])
+
+  deletions.push(oldFiber)
+}
+
 const Flagment = ({ children }: any) => children
 
-const normalizeVNode = (child: VChild | VChild[]) => {
+const normalizeVNode = (child: VChild | VChild[]): VNode | [] => {
   if (child == null || typeof child === 'boolean') {
-    return null
+    return []
   }
 
   if (typeof child !== 'object') {
@@ -96,54 +122,98 @@ const normalizeVNode = (child: VChild | VChild[]) => {
   return child
 }
 
+const getChildKeyMap = (fiber: Fiber | null | undefined) => {
+  const map = new Map<string | number, Fiber>()
+
+  if (!fiber) {
+    return map
+  }
+
+  let target = fiber.child
+
+  while (target) {
+    if (target.key != null) {
+      map.set(target.key, target)
+    }
+    target = target.sibling
+  }
+
+  return map
+}
+
+const getKey = (obj: VNode | Fiber | null | undefined) =>
+  (obj && obj.key != null) ? obj.key : null
+
 export const reconcileChildren = (wipFiber: Fiber, children: VChild | VChild[] | VChild[][]) => {
-  const elements = (Array.isArray(children) ? children : [children]).map(normalizeVNode)
+  const elements = (Array.isArray(children) ? children : [children]).flatMap(normalizeVNode)
+  const oldKeyMap = getChildKeyMap(wipFiber.alternate)
+  const usedKeys = new Set<string | number>()
 
   let index = 0
   let oldFiber = wipFiber.alternate && wipFiber.alternate.child
   let prevSibling: Fiber | null | undefined = null
 
-  while (index < elements.length || oldFiber) {
-    const element = elements[index]
+  while (index < elements.length) {
+    const element = elements[index]!
+    const newKey = element.key
+    const oldKey = getKey(oldFiber)
 
-    if (!element && oldFiber && index < elements.length) {
-      index++
+    if (usedKeys.has(newKey!)) {
+      oldFiber = oldFiber && oldFiber.sibling
       continue
     }
 
     let newFiber: Fiber | null = null
 
-    const sameType =
-      oldFiber &&
-      element &&
-      element.type == oldFiber.type
-
-    if (sameType) {
-      newFiber = createUpdateFiber(element, wipFiber, oldFiber!)
-    }
-    if (element && !sameType) {
-      newFiber = createPlacementFiber(element, wipFiber)
-    }
-    if (oldFiber && !sameType) {
-      const deletions = (wipFiber.deletions ||= [])
-
-      deletions.push(oldFiber)
-    }
-
-    if (oldFiber) {
+    if (newKey != null && oldFiber && newKey === getKey(oldFiber.sibling)) {
+      if (oldKey == null) {
+        removeChild(wipFiber, oldFiber)
+      }
       oldFiber = oldFiber.sibling
+      continue
+    }
+
+    if (newKey == null) {
+      if (oldKey == null) {
+        newFiber = createFiber(element, oldFiber)
+        index++
+      }
+      oldFiber = oldFiber && oldFiber.sibling
+    } else {
+      if (oldKey === newKey) {
+        newFiber = createFiber(element, oldFiber)
+        oldFiber = oldFiber && oldFiber.sibling
+      } else {
+        const keyedFiber = oldKeyMap.get(newKey)
+
+        if (keyedFiber) {
+          newFiber = createFiber(element, keyedFiber)
+          newFiber!.reorder = true
+        } else {
+          newFiber = createFiber(element)
+        }
+      }
+
+      usedKeys.add(newKey)
+      oldKeyMap.delete(newKey)
+      index++
     }
 
     if (newFiber) {
-      if (!prevSibling) {
-        wipFiber.child = newFiber
-      } else {
-        prevSibling!.sibling = newFiber
-      }
+      appendChild(wipFiber, newFiber, prevSibling)
 
       prevSibling = newFiber
     }
-
-    index++
   }
+
+  while (oldFiber) {
+    if (getKey(oldFiber) == null) {
+      removeChild(wipFiber, oldFiber)
+    }
+    oldFiber = oldFiber.sibling
+  }
+
+  oldKeyMap.forEach((fiber) => {
+    removeChild(wipFiber, fiber)
+  })
 }

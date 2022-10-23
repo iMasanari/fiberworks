@@ -1,4 +1,5 @@
 export const PLACEMENT_MUTATION = 'PLACEMENT_MUTATION'
+export const REORDER_MUTATION = 'REORDER_MUTATION'
 export const UPDATE_MUTATION = 'UPDATE_MUTATION'
 export const DELETION_MUTATION = 'DELETION_MUTATION'
 
@@ -18,6 +19,13 @@ export interface UpdateMutation {
   props: Record<string, unknown>
 }
 
+export interface ReorderMutation {
+  type: typeof REORDER_MUTATION
+  domId: number
+  parentId: number
+  siblingId: number | null | undefined
+}
+
 export interface DeletionMutation {
   type: typeof DELETION_MUTATION
   domId: number
@@ -27,4 +35,5 @@ export interface DeletionMutation {
 export type Mutation =
   | PlacementMutation
   | UpdateMutation
+  | ReorderMutation
   | DeletionMutation

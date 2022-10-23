@@ -10,9 +10,11 @@ export interface EffectData {
 export interface Fiber<P = Record<string, unknown>> {
   type: string | Component<P>
   props: P
+  key?: string | number
   domId?: number
   effectTag?: EffectTag
   effectData?: EffectData
+  reorder?: boolean
   alternate?: Fiber | null
   parent?: Fiber | null
   child?: Fiber | null

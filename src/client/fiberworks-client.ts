@@ -1,4 +1,4 @@
-import { Mutation, UPDATE_MUTATION, PLACEMENT_MUTATION, DELETION_MUTATION, PlacementMutation } from '../constants/mutations'
+import { Mutation, UPDATE_MUTATION, PLACEMENT_MUTATION, DELETION_MUTATION, PlacementMutation, REORDER_MUTATION } from '../constants/mutations'
 import { TEXT_NODE_TYPE } from '../constants/node-type'
 
 const domMap = new Map<number, Element | Text>()
@@ -64,6 +64,12 @@ const mutate = (mutation: Mutation, worker: Worker) => {
     for (const key in mutation.props) {
       setAttribute($target, key, mutation.props[key])
     }
+  } else if (mutation.type === REORDER_MUTATION) {
+    const $target = domMap.get(mutation.domId)!
+    const $sibling = mutation.siblingId != null ? domMap.get(mutation.siblingId)! : null
+    const $parent = domMap.get(mutation.parentId)!
+
+    $parent.insertBefore($target, $sibling)
   } else if (mutation.type === DELETION_MUTATION) {
     const $target = domMap.get(mutation.domId)!
 

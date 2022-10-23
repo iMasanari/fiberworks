@@ -1,5 +1,5 @@
 import { PLACEMENT_EFFECT, UPDATE_EFFECT } from '../constants/effects'
-import { DELETION_MUTATION, Mutation, PLACEMENT_MUTATION, UPDATE_MUTATION } from '../constants/mutations'
+import { DELETION_MUTATION, Mutation, PLACEMENT_MUTATION, REORDER_MUTATION, UPDATE_MUTATION } from '../constants/mutations'
 import { ROOT_NODE_TYPE } from '../constants/node-type'
 import { Fiber, getHostSibling, getNextFiber } from './fiber'
 import { Component, VChild, VNode } from './jsx'
@@ -25,6 +25,37 @@ const commitRoot = () => {
 const commitWork = (fiber: Fiber, mutations: Mutation[]) => {
   if (fiber.deletions) {
     fiber.deletions.forEach(fiber => commitDeletion(fiber, mutations))
+  }
+
+  if (fiber.reorder) {
+    const hosts: Fiber[] = []
+    let node: Fiber | null | undefined = fiber
+
+    while (node) {
+      if (typeof node.type === 'string' && node.effectTag !== PLACEMENT_EFFECT) {
+        hosts.push(node)
+        // TODO: 専用の関数を作成する
+        node = getNextFiber({ ...node, child: null }, fiber)
+      } else {
+        node = getNextFiber(node, fiber)
+      }
+    }
+
+    if (hosts.length) {
+      let domParentFiber = fiber.parent!
+      while (domParentFiber.domId == null) {
+        domParentFiber = domParentFiber.parent!
+      }
+
+      for (const fiber of hosts) {
+        mutations.push({
+          type: REORDER_MUTATION,
+          domId: fiber.domId!,
+          parentId: domParentFiber.domId,
+          siblingId: getHostSibling(fiber)?.domId,
+        })
+      }
+    }
   }
 
   if (fiber.effectTag === PLACEMENT_EFFECT && fiber.domId) {
