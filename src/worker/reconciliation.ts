@@ -70,13 +70,19 @@ const createUpdateFiber = (element: VNode<Record<string, any>>, oldFiber: Fiber)
 }
 
 const createFiber = (element: VNode, oldFiber?: Fiber | null | undefined) => {
-  const sameType = oldFiber && element && element.type == oldFiber.type
+  const sameType = element && oldFiber && element.type == oldFiber.type
 
   if (sameType) {
     return createUpdateFiber(element, oldFiber)
   }
 
-  return createPlacementFiber(element)
+  const fiber = createPlacementFiber(element)
+
+  if (oldFiber) {
+    fiber.deletions = [oldFiber]
+  }
+
+  return fiber
 }
 
 const appendChild = (parentFiber: Fiber, fiber: Fiber, prevSibling: Fiber | null) => {
